@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Sky Kart Rampage! 3D 2-Player WebRTC</title>
+  
+  <!-- PeerJS & QRCode Libraries -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      margin: 0;
+      padding: 0;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05050d;
+      font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #fff;
+    }
+    #game-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #1a1a3a 0%, #05050d 100%);
+    }
+    canvas#gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      box-shadow: 0 0 30px rgba(0, 255, 200, 0.2);
+    }
+    /* UI Overlay Elements */
+    .overlay-panel {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 18, 32, 0.92);
+      border: 3px solid #00ffcc;
+      border-radius: 16px;
+      padding: 25px 35px;
+      box-shadow: 0 0 40px rgba(0, 255, 200, 0.3), inset 0 0 15px rgba(0, 255, 200, 0.1);
+      width: 90%;
+      max-width: 650px;
+      max-height: 90vh;
+      overflow-y: auto;
+      z-index: 20;
+      backdrop-filter: blur(8px);
+      text-align: center;
+    }
+    h1.title {
+      font-size: 2.5rem;
+      font-weight: 900;
+      font-style: italic;
+      color: #00ffcc;
+      text-shadow: 0 0 10px #00ffcc, 3px 3px 0px #ff007f;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    p.subtitle {
+      color: #a0aec0;
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+    .input-group {
+      margin: 15px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 12px 18px;
+      border-radius: 8px;
+      border: 2px solid #30363d;
+      background: #0d1117;
+      color: #ff007f;
+      font-size: 1.3rem;
+      font-weight: bold;
+      text-align: center;
+      letter-spacing: 4px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="text"]:focus {
+      border-color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0, 255, 200, 0.3);
+    }
+    .btn {
+      padding: 12px 24px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+    .btn-primary { background: linear-gradient(135deg, #00ffcc, #00b386); color: #000; }
+    .btn-primary:hover { background: linear-gradient(135deg, #33ffdd, #00e6a8); transform: translateY(-2px); }
+    .btn-secondary { background: linear-gradient(135deg, #ff007f, #b30059); color: #fff; }
+    .btn-secondary:hover { background: linear-gradient(135deg, #ff3399, #e60073); transform: translateY(-2px); }
+    .btn-sub { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; font-size: 0.9rem; padding: 8px 14px; }
+    .btn-sub:hover { background: #30363d; color: #fff; }
+    
+    .room-code-badge {
+      display: inline-block;
+      font-size: 2.2rem;
+      font-weight: bold;
+      color: #00ffcc;
+      background: #00000066;
+      padding: 10px 25px;
+      border-radius: 10px;
+      border: 2px dashed #00ffcc;
+      letter-spacing: 6px;
+      margin: 15px 0;
+      animation: pulse 1.5s infinite alternate;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 5px rgba(0,255,200,0.2); }
+      100% { box-shadow: 0 0 20px rgba(0,255,200,0.8); }
+    }
+    
+    /* Customization Selectors */
+    .custom-row {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin: 15px 0;
+    }
+    .custom-box {
+      background: #161b22;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      flex: 1;
+    }
+    .custom-box label { display: block; font-size: 0.8rem; color: #8b949e; margin-bottom: 5px; }
+    .opt-btns { display: flex; justify-content: center; gap: 5px; }
+    .opt-btn {
+      padding: 6px 10px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .opt-btn.active { border-color: #00ffcc; background: #00ffcc22; color: #00ffcc; }
+
+    /* HUD Elements */
+    #hud {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      display: none;
+      padding: 20px;
+      z-index: 10;
+    }
+    .hud-top-left { position: absolute; top: 20px; left: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .hud-top-right { position: absolute; top: 20px; right: 20px; text-align: right; }
+    .hud-bottom-left { position: absolute; bottom: 20px; left: 20px; }
+    .hud-bottom-right { position: absolute; bottom: 20px; right: 20px; }
+    
+    .hud-card {
+      background: rgba(10, 14, 26, 0.75);
+      border: 1.5px solid rgba(0, 255, 200, 0.4);
+      padding: 8px 16px;
+      border-radius: 8px;
+      backdrop-filter: blur(4px);
+    }
+    .lives-icon { font-size: 1.4rem; color: #ff0055; filter: drop-shadow(0 0 5px #ff0055); }
+    .item-box-hud {
+      width: 60px; height: 60px;
+      border: 2px solid #ffd700;
+      border-radius: 10px;
+      background: rgba(255, 215, 0, 0.15);
+      display: flex; justify-content: center; align-items: center;
+      font-size: 1.8rem;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    }
+    .position-text { font-size: 2rem; font-weight: 900; font-style: italic; color: #ff007f; }
+
+    /* Onscreen Touch Controls */
+    #touch-controls {
+      position: absolute; bottom: 20px; left: 0; width: 100%; height: 160px;
+      display: none; justify-content: space-between; padding: 0 20px;
+      pointer-events: auto; z-index: 15;
+    }
+    .dpad, .action-btns { display: flex; gap: 10px; align-items: center; }
+    .t-btn {
+      width: 55px; height: 55px; background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%;
+      display: flex; justify-content: center; align-items: center;
+      font-size: 1.2rem; color: #fff; touch-action: manipulation;
+    }
+    .t-btn:active { background: rgba(0, 255, 200, 0.4); }
+
+    /* QR Overlay */
+    #qr-container { display: flex; justify-content: center; margin: 15px 0; }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="1000" height="600"></canvas>
+
+  <!-- MAIN MENU OVERLAY -->
+  <div id="menu-overlay" class="overlay-panel">
+    <h1 class="title">SKY KART RAMPAGE!</h1>
+    <p class="subtitle">3D Local & WebRTC 2-Player Chromebook Racing</p>
+
+    <div class="custom-row">
+      <div class="custom-box">
+        <label>DRIVER</label>
+        <div class="opt-btns" id="driver-opts">
+          <button class="opt-btn active" onclick="setDriver('🐱')">🐱</button>
+          <button class="opt-btn" onclick="setDriver('🤖')">🤖</button>
